@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cascade-diagnose"
+version = "0.1.0"
+description = "A layer-wise failure diagnostic for CNNs under distribution shift"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=2.0",
+    "torchvision>=0.15",
+    "captum>=0.6",
+    "numpy>=1.23",
+    "scipy>=1.9",
+]
+
+[project.scripts]
+cascade = "cascade.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["cascade*"]
