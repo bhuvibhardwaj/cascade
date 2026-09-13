@@ -71,6 +71,25 @@ def test_identical_inputs_produce_near_zero_dk():
     assert max(dk_raw) < 1e-4, f"Self-vs-self D(k) non-zero: max={max(dk_raw)}"
 
 
+def test_dk_return_maps_keeps_pre_subtraction_tensors():
+    """Maps were previously discarded after .norm(); return_maps exposes them."""
+    torch.manual_seed(0)
+    cascade = Cascade(TinyCNN())
+    clean, shifted = _fake_pair(0)
+    dk_raw, dk_norm = cascade.dk(clean, shifted, target_class=0)
+    out = cascade.dk(clean, shifted, target_class=0, return_maps=True)
+    assert len(out) == 4
+    raw2, norm2, a_clean, a_shift = out
+    assert raw2 == dk_raw
+    assert norm2 == dk_norm
+    assert len(a_clean) == len(a_shift) == cascade.n_layers
+    for ac, ash, r, n in zip(a_clean, a_shift, raw2, norm2):
+        diff = ash - ac
+        assert abs(diff.norm().item() - r) < 1e-6
+        denom = ac.norm().item() + NORM_EPSILON
+        assert abs(r / denom - n) < 1e-6
+
+
 def test_dk_returns_raw_and_normalized():
     model = TinyCNN()
     cascade = Cascade(model)

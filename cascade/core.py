@@ -15,7 +15,7 @@ choice for cross-layer comparison and for defining drift thresholds.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -129,11 +129,21 @@ class Cascade:
         clean_image: torch.Tensor,
         shifted_image: torch.Tensor,
         target_class: int,
-    ) -> Tuple[List[float], List[float]]:
+        return_maps: bool = False,
+    ) -> Union[
+        Tuple[List[float], List[float]],
+        Tuple[List[float], List[float], List[torch.Tensor], List[torch.Tensor]],
+    ]:
         """Return (D_raw, D_norm) per layer for a given target_class.
 
-        D_raw(k)  = || G_k^shift - G_k^clean ||
-        D_norm(k) = D_raw(k) / ( || G_k^clean || + eps )
+        D_raw(k)  = || G_k^shift - G_k^clean ||_2   (computed, then maps kept)
+        D_norm(k) = D_raw(k) / ( || G_k^clean ||_2 + eps )
+
+        The GradCAM tensors A_k(clean) and A_k(shifted) stay in scope through
+        the .norm() calls. Default return is still only the scalars (callers
+        unchanged). Pass return_maps=True to also get those two lists, so a
+        later metric (e.g. cosine distance) can reuse one forward without
+        another GradCAM pass.
         """
         attrs_clean = self._attribute(clean_image, target_class)
         attrs_shifted = self._attribute(shifted_image, target_class)
@@ -145,6 +155,8 @@ class Cascade:
             denom = a_clean.norm().item() + NORM_EPSILON
             dk_raw.append(float(d_raw))
             dk_norm.append(float(d_raw / denom))
+        if return_maps:
+            return dk_raw, dk_norm, attrs_clean, attrs_shifted
         return dk_raw, dk_norm
 
     def layer_drift(
