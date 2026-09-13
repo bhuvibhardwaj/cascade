@@ -108,6 +108,8 @@ Two hardened runners are included:
 
 - `train_and_run.py` — MNIST small CNN, 5 epochs
 - `train_and_Run_resnet18.py` — ResNet18 on CIFAR-10, 5 epochs
+- `experiments/exp02_pnr_statistical_layer.py` — DKW / MWU / BH / trajectory FAR on MNIST (cheap three-way-split check)
+- `experiments/exp03_pnr_statistical_layer_resnet18.py` — same pipeline on ResNet18/CIFAR-10 (the setup to cite; default 300 per fold)
 
 Both do:
 1. **Dataset-indexed clean/shifted pairing** (`clean[i]` always matches `shifted[i]` — never by list position).
@@ -126,6 +128,17 @@ Run `python3 train_and_run.py` or `python3 train_and_Run_resnet18.py`. Results g
 - `cascade/shift.py` — deterministic `ShiftSpec`, `build_shift`, `make_shifted_dataset`
 - `cascade/report.py` — fragility profiles (paired tests, two outcome groups)
 - `cascade/diagnose.py` — per-input PNR + stable/unstable verdict
-- `cascade/pnr.py` — population-calibrated PNR threshold calibration
+- `cascade/pnr.py` — population-calibrated PNR threshold calibration (naive quantile path)
+- `cascade/bounds.py` — DKW ε/ε_sim, MWU, BH/BY, trajectory FAR, Bonferroni/joint PNR calibration
+- `cascade/significance.py` — per-layer shifted-vs-null MWU + FDR table
 - `cascade/plots.py` — layer-wise D(k) plots + CSVs
 - `cascade/cli.py` — `cascade analyze` (artifact-producing, seeded, deterministic)
+
+## Statistical layer (PNR)
+
+See `RESULTS.md` for what the math-backing document claims vs what is now code-verified and measured on real data. Naive `calibrate_pnr_thresholds(..., quantile=0.95)` remains the default; it does **not** give a 5% false-PNR rate for the 8-layer union rule. Use `calibrate_thresholds_bonferroni` or `calibrate_thresholds_joint(..., tune_pairs=...)` (Option C overfits if you omit the disjoint tune fold), and `layer_significance_table` for the shifted-vs-null population test (distinct from the paired layer-to-layer tests in `report.py`).
+
+```bash
+python experiments/exp02_pnr_statistical_layer.py
+python experiments/exp03_pnr_statistical_layer_resnet18.py
+```

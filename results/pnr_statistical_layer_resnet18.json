@@ -1,0 +1,432 @@
+{
+  "experiment": "pnr_statistical_layer_resnet18",
+  "dataset": "CIFAR-10",
+  "model": "cifar10_resnet18",
+  "seed": 42,
+  "shift": {
+    "name": "runner_mild",
+    "degrees": 45.0,
+    "blur_kernel": 5,
+    "blur_sigma": 1.5,
+    "noise_std": 0.0,
+    "brightness": 1.0,
+    "contrast": 1.0
+  },
+  "null": {
+    "kind": "gaussian_two_view_then_cifar_normalize",
+    "sigma_pixel": 0.05,
+    "note": "Two-view noise is applied in [0,1] pixel space, then the same CIFAR mean/std as train_and_Run_resnet18.py. Identical-image pairs are not used (degenerate D(k))."
+  },
+  "n_calib": 300,
+  "n_tune": 300,
+  "n_holdout": 300,
+  "n_mwu_null": 300,
+  "n_mwu_shifted": 300,
+  "split": {
+    "calib": "per-layer \u03b8_k only",
+    "tune": "Option C multiplier; naive template frozen from calib",
+    "holdout": "union FAR + Wilson 95% CI",
+    "mwu_null": "MWU null group; disjoint from calib/tune/holdout",
+    "mwu_shifted": "MWU shifted group; disjoint from all null folds"
+  },
+  "n_layers": 8,
+  "layer_names": [
+    "conv1",
+    "layer1.1.conv1",
+    "layer2.0.conv1",
+    "layer2.1.conv1",
+    "layer3.0.conv2",
+    "layer3.1.conv2",
+    "layer4.0.conv2",
+    "layer4.1.conv2"
+  ],
+  "dkw": {
+    "n_pairs": 300,
+    "delta": 0.05,
+    "epsilon": 0.07841002756996855,
+    "epsilon_simultaneous": 0.09805033567674797
+  },
+  "thresholds": {
+    "naive": {
+      "layer_names": [
+        "conv1",
+        "layer1.1.conv1",
+        "layer2.0.conv1",
+        "layer2.1.conv1",
+        "layer3.0.conv2",
+        "layer3.1.conv2",
+        "layer4.0.conv2",
+        "layer4.1.conv2"
+      ],
+      "values": [
+        1.2650196793564483,
+        1.258233116496961,
+        1.071264061618976,
+        1.2466493307902269,
+        0.7744616141510481,
+        0.8550912769046825,
+        0.7422091523294216,
+        0.9522215875138538
+      ],
+      "quantile": 0.95,
+      "n_pairs": 300,
+      "epsilon": 0.07841002756996855,
+      "epsilon_simultaneous": 0.09805033567674797,
+      "calibration_method": "naive",
+      "measured_false_alarm_rate_on_fit_fold": 0.24
+    },
+    "bonferroni": {
+      "layer_names": [
+        "conv1",
+        "layer1.1.conv1",
+        "layer2.0.conv1",
+        "layer2.1.conv1",
+        "layer3.0.conv2",
+        "layer3.1.conv2",
+        "layer4.0.conv2",
+        "layer4.1.conv2"
+      ],
+      "values": [
+        1.7538601066669592,
+        1.7616661725739318,
+        1.6683851536707561,
+        2.057004751703353,
+        0.9922523851764539,
+        1.2853973110332544,
+        1.1790806018192455,
+        2.06193002111955
+      ],
+      "quantile": 0.99375,
+      "n_pairs": 300,
+      "epsilon": 0.07841002756996855,
+      "epsilon_simultaneous": 0.09805033567674797,
+      "calibration_method": "bonferroni",
+      "measured_false_alarm_rate_on_fit_fold": 0.03666666666666667
+    },
+    "joint": {
+      "layer_names": [
+        "conv1",
+        "layer1.1.conv1",
+        "layer2.0.conv1",
+        "layer2.1.conv1",
+        "layer3.0.conv2",
+        "layer3.1.conv2",
+        "layer4.0.conv2",
+        "layer4.1.conv2"
+      ],
+      "values": [
+        1.7978498540856063,
+        1.7882047701032928,
+        1.522483774994415,
+        1.7717418582747546,
+        1.1006672249594576,
+        1.2152583493365412,
+        1.0548299271480819,
+        1.3533002451312577
+      ],
+      "quantile": 0.95,
+      "n_pairs": 300,
+      "epsilon": 0.07841002756996855,
+      "epsilon_simultaneous": 0.09805033567674797,
+      "calibration_method": "joint",
+      "measured_false_alarm_rate_on_fit_fold": 0.05
+    }
+  },
+  "false_alarm_rate": {
+    "independence_formula_L8_q95": 0.33657956871093775,
+    "tune_joint": {
+      "n_triggered": 15,
+      "n": 300,
+      "rate": 0.05,
+      "wilson_95_lo": 0.03053164062934728,
+      "wilson_95_hi": 0.08084703347274415,
+      "display": "15/300 = 5.0% [95% CI: 3.1%\u20138.1%]"
+    },
+    "holdout_wilson_95": {
+      "naive": {
+        "n_triggered": 84,
+        "n": 300,
+        "rate": 0.28,
+        "wilson_95_lo": 0.23221902212795326,
+        "wilson_95_hi": 0.33334388521084696,
+        "display": "84/300 = 28.0% [95% CI: 23.2%\u201333.3%]"
+      },
+      "bonferroni": {
+        "n_triggered": 15,
+        "n": 300,
+        "rate": 0.05,
+        "wilson_95_lo": 0.03053164062934728,
+        "wilson_95_hi": 0.08084703347274415,
+        "display": "15/300 = 5.0% [95% CI: 3.1%\u20138.1%]"
+      },
+      "joint": {
+        "n_triggered": 19,
+        "n": 300,
+        "rate": 0.06333333333333334,
+        "wilson_95_lo": 0.040916882383915276,
+        "wilson_95_hi": 0.09679131248552161,
+        "display": "19/300 = 6.3% [95% CI: 4.1%\u20139.7%]"
+      }
+    },
+    "option_c_multiplier": 1.4212030717183972,
+    "option_c_notes": [],
+    "note": "Cite holdout_wilson_95[*].display. Multiplier was refit on this ResNet18 tune fold; do not carry over the MNIST value."
+  },
+  "descriptive_d_norm": {
+    "note": "Mean/median D_norm on the MWU folds only \u2014 descriptive, not a causal compounding test (Section 7 not run).",
+    "mwu_null": [
+      {
+        "layer_name": "conv1",
+        "mean": 0.7712575276184035,
+        "median": 0.7360333172360876
+      },
+      {
+        "layer_name": "layer1.1.conv1",
+        "mean": 0.7916997493150071,
+        "median": 0.7578962646265426
+      },
+      {
+        "layer_name": "layer2.0.conv1",
+        "mean": 0.6036973073940927,
+        "median": 0.5363288527968286
+      },
+      {
+        "layer_name": "layer2.1.conv1",
+        "mean": 0.6173078581289932,
+        "median": 0.5475958627079509
+      },
+      {
+        "layer_name": "layer3.0.conv2",
+        "mean": 0.47118680458875284,
+        "median": 0.43263416352760986
+      },
+      {
+        "layer_name": "layer3.1.conv2",
+        "mean": 0.42447338973554877,
+        "median": 0.38950673394630175
+      },
+      {
+        "layer_name": "layer4.0.conv2",
+        "mean": 0.3162819996868964,
+        "median": 0.26440407782786746
+      },
+      {
+        "layer_name": "layer4.1.conv2",
+        "mean": 0.28164933827302907,
+        "median": 0.15422271607997726
+      }
+    ],
+    "mwu_shifted": [
+      {
+        "layer_name": "conv1",
+        "mean": 1.3269688338433918,
+        "median": 1.2007980835640726
+      },
+      {
+        "layer_name": "layer1.1.conv1",
+        "mean": 1.1859138360997532,
+        "median": 1.0858715015188838
+      },
+      {
+        "layer_name": "layer2.0.conv1",
+        "mean": 1.3354343344950144,
+        "median": 1.1858023414650267
+      },
+      {
+        "layer_name": "layer2.1.conv1",
+        "mean": 1.236335642996194,
+        "median": 1.1308326302487406
+      },
+      {
+        "layer_name": "layer3.0.conv2",
+        "mean": 1.177424920392515,
+        "median": 1.1059632605169654
+      },
+      {
+        "layer_name": "layer3.1.conv2",
+        "mean": 1.1191025861890207,
+        "median": 1.0875395655306992
+      },
+      {
+        "layer_name": "layer4.0.conv2",
+        "mean": 1.0235080974187998,
+        "median": 0.9759258421934665
+      },
+      {
+        "layer_name": "layer4.1.conv2",
+        "mean": 1.0819675794179504,
+        "median": 0.9887048343400027
+      }
+    ]
+  },
+  "layer_significance_bh": {
+    "q": 0.05,
+    "fdr_method": "bh",
+    "n_null": 300,
+    "n_shifted": 300,
+    "cutoff_rank": 8,
+    "rows": [
+      {
+        "layer_name": "conv1",
+        "layer_index": 0,
+        "u_statistic": 82562.0,
+        "z_score": 17.6919237757944,
+        "p_value": 2.419731440994381e-70,
+        "p_adjusted": 3.226308587992508e-70,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer1.1.conv1",
+        "layer_index": 1,
+        "u_statistic": 76503.0,
+        "z_score": 14.838061013190716,
+        "p_value": 4.1562021006681757e-50,
+        "p_adjusted": 4.1562021006681757e-50,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer2.0.conv1",
+        "layer_index": 2,
+        "u_statistic": 82182.0,
+        "z_score": 17.51293914965322,
+        "p_value": 5.70726395824717e-69,
+        "p_adjusted": 6.522587380853908e-69,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer2.1.conv1",
+        "layer_index": 3,
+        "u_statistic": 83761.0,
+        "z_score": 18.25666737248722,
+        "p_value": 9.156676162070317e-75,
+        "p_adjusted": 1.4650681859312509e-74,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer3.0.conv2",
+        "layer_index": 4,
+        "u_statistic": 89444.0,
+        "z_score": 20.93342955764595,
+        "p_value": 1.3283830346844185e-97,
+        "p_adjusted": 1.0627064277475348e-96,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer3.1.conv2",
+        "layer_index": 5,
+        "u_statistic": 88225.0,
+        "z_score": 20.359265717472013,
+        "p_value": 1.9214986963668482e-92,
+        "p_adjusted": 7.685994785467393e-92,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer4.0.conv2",
+        "layer_index": 6,
+        "u_statistic": 88045.0,
+        "z_score": 20.27448352614198,
+        "p_value": 1.0802392367178322e-91,
+        "p_adjusted": 2.880637964580886e-91,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer4.1.conv2",
+        "layer_index": 7,
+        "u_statistic": 84118.0,
+        "z_score": 18.42481871862512,
+        "p_value": 4.1534245158787876e-76,
+        "p_adjusted": 8.306849031757575e-76,
+        "rejected": true
+      }
+    ]
+  },
+  "layer_significance_by": {
+    "q": 0.05,
+    "fdr_method": "by",
+    "n_null": 300,
+    "n_shifted": 300,
+    "cutoff_rank": 8,
+    "rows": [
+      {
+        "layer_name": "conv1",
+        "layer_index": 0,
+        "u_statistic": 82562.0,
+        "z_score": 17.6919237757944,
+        "p_value": 2.419731440994381e-70,
+        "p_adjusted": 8.76864584093678e-70,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer1.1.conv1",
+        "layer_index": 1,
+        "u_statistic": 76503.0,
+        "z_score": 14.838061013190716,
+        "p_value": 4.1562021006681757e-50,
+        "p_adjusted": 1.1295963566458863e-49,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer2.0.conv1",
+        "layer_index": 2,
+        "u_statistic": 82182.0,
+        "z_score": 17.51293914965322,
+        "p_value": 5.70726395824717e-69,
+        "p_adjusted": 1.772746070296366e-68,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer2.1.conv1",
+        "layer_index": 3,
+        "u_statistic": 83761.0,
+        "z_score": 18.25666737248722,
+        "p_value": 9.156676162070317e-75,
+        "p_adjusted": 3.9818460339060065e-74,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer3.0.conv2",
+        "layer_index": 4,
+        "u_statistic": 89444.0,
+        "z_score": 20.93342955764595,
+        "p_value": 1.3283830346844185e-97,
+        "p_adjusted": 2.8882842554138353e-96,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer3.1.conv2",
+        "layer_index": 5,
+        "u_statistic": 88225.0,
+        "z_score": 20.359265717472013,
+        "p_value": 1.9214986963668482e-92,
+        "p_adjusted": 2.0889435827645304e-91,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer4.0.conv2",
+        "layer_index": 6,
+        "u_statistic": 88045.0,
+        "z_score": 20.27448352614198,
+        "p_value": 1.0802392367178322e-91,
+        "p_adjusted": 7.829162468021621e-91,
+        "rejected": true
+      },
+      {
+        "layer_name": "layer4.1.conv2",
+        "layer_index": 7,
+        "u_statistic": 84118.0,
+        "z_score": 18.42481871862512,
+        "p_value": 4.1534245158787876e-76,
+        "p_adjusted": 2.2576828975598266e-75,
+        "rejected": true
+      }
+    ]
+  },
+  "checkpoint": "/Users/bhuvibhardwaj/Dev/cascade/results/pnr_statistical_layer_resnet18_seed42_1789106507/resnet18_cifar10.pt",
+  "environment": {
+    "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:11:29) [Clang 20.1.8 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "torch": "2.13.0",
+    "numpy": "2.5.1",
+    "device": "mps"
+  }
+}

@@ -1,0 +1,332 @@
+{
+  "experiment": "pnr_statistical_layer",
+  "dataset": "MNIST",
+  "model": "EightLayerCNN",
+  "seed": 42,
+  "shift": {
+    "name": "aggressive",
+    "degrees": 75.0,
+    "blur_kernel": 7,
+    "blur_sigma": 2.0,
+    "noise_std": 0.0,
+    "brightness": 1.0,
+    "contrast": 1.0
+  },
+  "null": {
+    "kind": "gaussian_two_view",
+    "sigma": 0.05,
+    "note": "Math-backing \u00a72: null pairs from the same unshifted distribution, differing by seed/augmentation. Identical-image pairs are degenerate (D(k)\u22480) and are not used here."
+  },
+  "n_calib": 500,
+  "n_tune": 350,
+  "n_holdout": 350,
+  "n_shifted": 350,
+  "split": {
+    "calib": "per-layer \u03b8_k (naive 95th and Bonferroni 1-\u03b1/L)",
+    "tune": "Option C multiplier; template frozen from calib",
+    "holdout": "final union FAR with Wilson 95% CI \u2014 the number to cite"
+  },
+  "n_layers": 8,
+  "layer_names": [
+    "features.0",
+    "features.2",
+    "features.5",
+    "features.7",
+    "features.10",
+    "features.12",
+    "features.15",
+    "features.17"
+  ],
+  "dkw": {
+    "n_pairs": 500,
+    "delta": 0.05,
+    "epsilon": 0.060736146190830516,
+    "epsilon_simultaneous": 0.07594946343321836
+  },
+  "thresholds": {
+    "naive": {
+      "layer_names": [
+        "features.0",
+        "features.2",
+        "features.5",
+        "features.7",
+        "features.10",
+        "features.12",
+        "features.15",
+        "features.17"
+      ],
+      "values": [
+        0.7087221121202607,
+        1.0261660667541246,
+        0.6541969934307005,
+        0.4928706854893075,
+        0.4030136753928542,
+        0.2742576746092309,
+        0.21614059053659707,
+        0.08060652233228989
+      ],
+      "quantile": 0.95,
+      "n_pairs": 500,
+      "epsilon": 0.060736146190830516,
+      "epsilon_simultaneous": 0.07594946343321836,
+      "calibration_method": "naive",
+      "measured_false_alarm_rate_on_fit_fold": 0.286
+    },
+    "bonferroni": {
+      "layer_names": [
+        "features.0",
+        "features.2",
+        "features.5",
+        "features.7",
+        "features.10",
+        "features.12",
+        "features.15",
+        "features.17"
+      ],
+      "values": [
+        1.4453064711313954,
+        1.6893121407885603,
+        1.3177684419901723,
+        0.829021153036644,
+        0.5695663266837752,
+        0.5369707356255792,
+        0.4183680939263853,
+        0.12983853585816948
+      ],
+      "quantile": 0.99375,
+      "n_pairs": 500,
+      "epsilon": 0.060736146190830516,
+      "epsilon_simultaneous": 0.07594946343321836,
+      "calibration_method": "bonferroni",
+      "measured_false_alarm_rate_on_fit_fold": 0.06
+    },
+    "joint": {
+      "layer_names": [
+        "features.0",
+        "features.2",
+        "features.5",
+        "features.7",
+        "features.10",
+        "features.12",
+        "features.15",
+        "features.17"
+      ],
+      "values": [
+        1.4334937201252502,
+        2.075570364380075,
+        1.3232087242236328,
+        0.9969027640030249,
+        0.8151538704950433,
+        0.5547261014226335,
+        0.4371758322474915,
+        0.1630384343713918
+      ],
+      "quantile": 0.95,
+      "n_pairs": 500,
+      "epsilon": 0.060736146190830516,
+      "epsilon_simultaneous": 0.07594946343321836,
+      "calibration_method": "joint",
+      "measured_false_alarm_rate_on_fit_fold": 0.04857142857142857
+    }
+  },
+  "false_alarm_rate": {
+    "independence_formula_L8_q95": 0.33657956871093775,
+    "holdout_wilson_95": {
+      "naive": {
+        "n_triggered": 91,
+        "n": 350,
+        "rate": 0.26,
+        "wilson_95_lo": 0.2168281707641185,
+        "wilson_95_hi": 0.3083829207797573,
+        "display": "91/350 = 26.0% [95% CI: 21.7%\u201330.8%]"
+      },
+      "bonferroni": {
+        "n_triggered": 20,
+        "n": 350,
+        "rate": 0.05714285714285714,
+        "wilson_95_lo": 0.03729236639934702,
+        "wilson_95_hi": 0.08660905252089991,
+        "display": "20/350 = 5.7% [95% CI: 3.7%\u20138.7%]"
+      },
+      "joint": {
+        "n_triggered": 14,
+        "n": 350,
+        "rate": 0.04,
+        "wilson_95_lo": 0.023974281779205586,
+        "wilson_95_hi": 0.0660136436798896,
+        "display": "14/350 = 4.0% [95% CI: 2.4%\u20136.6%]"
+      }
+    },
+    "note": "Cite holdout_wilson_95[*].display, not a bare percentage. ResNet18/CIFAR-10 is the setup to cite for the 16\u00d7 amplification finding; this MNIST run is the cheap three-way-split check."
+  },
+  "joint_multiplier": 2.022645682433576,
+  "layer_significance_bh": {
+    "q": 0.05,
+    "fdr_method": "bh",
+    "n_null": 350,
+    "n_shifted": 350,
+    "cutoff_rank": 8,
+    "rows": [
+      {
+        "layer_name": "features.0",
+        "layer_index": 0,
+        "u_statistic": 119886.0,
+        "z_score": 21.919174924859522,
+        "p_value": 8.525990827553178e-107,
+        "p_adjusted": 9.743989517203632e-107,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.2",
+        "layer_index": 1,
+        "u_statistic": 119116.0,
+        "z_score": 21.631332837862026,
+        "p_value": 4.555622874611138e-104,
+        "p_adjusted": 4.555622874611138e-104,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.5",
+        "layer_index": 2,
+        "u_statistic": 120004.0,
+        "z_score": 21.96328579013966,
+        "p_value": 3.232547229070212e-107,
+        "p_adjusted": 4.310062972093616e-107,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.7",
+        "layer_index": 3,
+        "u_statistic": 122051.0,
+        "z_score": 22.728497156482362,
+        "p_value": 1.1710778242590031e-114,
+        "p_adjusted": 2.3421556485180062e-114,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.10",
+        "layer_index": 4,
+        "u_statistic": 121528.0,
+        "z_score": 22.532988829859384,
+        "p_value": 9.859582666468214e-113,
+        "p_adjusted": 1.5775332266349143e-112,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.12",
+        "layer_index": 5,
+        "u_statistic": 122429.0,
+        "z_score": 22.86980145373568,
+        "p_value": 4.64273099949334e-116,
+        "p_adjusted": 1.2380615998648907e-115,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.15",
+        "layer_index": 6,
+        "u_statistic": 122488.0,
+        "z_score": 22.891856886375745,
+        "p_value": 2.800214175257252e-116,
+        "p_adjusted": 1.1200856701029009e-115,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.17",
+        "layer_index": 7,
+        "u_statistic": 122500.0,
+        "z_score": 22.8963427370822,
+        "p_value": 2.5264147252936664e-116,
+        "p_adjusted": 1.1200856701029009e-115,
+        "rejected": true
+      }
+    ]
+  },
+  "layer_significance_by": {
+    "q": 0.05,
+    "fdr_method": "by",
+    "n_null": 350,
+    "n_shifted": 350,
+    "cutoff_rank": 8,
+    "rows": [
+      {
+        "layer_name": "features.0",
+        "layer_index": 0,
+        "u_statistic": 119886.0,
+        "z_score": 21.919174924859522,
+        "p_value": 8.525990827553178e-107,
+        "p_adjusted": 2.648277150925701e-106,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.2",
+        "layer_index": 1,
+        "u_statistic": 119116.0,
+        "z_score": 21.631332837862026,
+        "p_value": 4.555622874611138e-104,
+        "p_adjusted": 1.238153216992527e-103,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.5",
+        "layer_index": 2,
+        "u_statistic": 120004.0,
+        "z_score": 21.96328579013966,
+        "p_value": 3.232547229070212e-107,
+        "p_adjusted": 1.171413543486872e-106,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.7",
+        "layer_index": 3,
+        "u_statistic": 122051.0,
+        "z_score": 22.728497156482362,
+        "p_value": 1.1710778242590031e-114,
+        "p_adjusted": 6.365644459007866e-114,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.10",
+        "layer_index": 4,
+        "u_statistic": 121528.0,
+        "z_score": 22.532988829859384,
+        "p_value": 9.859582666468214e-113,
+        "p_adjusted": 4.287509948104177e-112,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.12",
+        "layer_index": 5,
+        "u_statistic": 122429.0,
+        "z_score": 22.86980145373568,
+        "p_value": 4.64273099949334e-116,
+        "p_adjusted": 3.364874562489934e-115,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.15",
+        "layer_index": 6,
+        "u_statistic": 122488.0,
+        "z_score": 22.891856886375745,
+        "p_value": 2.800214175257252e-116,
+        "p_adjusted": 3.044232839101098e-115,
+        "rejected": true
+      },
+      {
+        "layer_name": "features.17",
+        "layer_index": 7,
+        "u_statistic": 122500.0,
+        "z_score": 22.8963427370822,
+        "p_value": 2.5264147252936664e-116,
+        "p_adjusted": 3.044232839101098e-115,
+        "rejected": true
+      }
+    ]
+  },
+  "environment": {
+    "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:11:29) [Clang 20.1.8 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "torch": "2.13.0",
+    "numpy": "2.5.1",
+    "device": "mps"
+  }
+}

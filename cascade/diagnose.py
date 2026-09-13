@@ -38,6 +38,10 @@ class DiagnosisResult:
     pnr_thresholds: Optional[List[float]]
     correlation: float
     verdict: str  # "stable" or "unstable"
+    calibration_method: Optional[str] = None
+    epsilon: Optional[float] = None
+    epsilon_simultaneous: Optional[float] = None
+    measured_false_alarm_rate: Optional[float] = None
 
     def summary(self) -> str:
         if self.pnr_thresholds is None:
@@ -46,11 +50,32 @@ class DiagnosisResult:
             pnr = "not reached within instrumented layers"
         else:
             pnr = f"{self.point_of_no_return_layer} (layer {self.point_of_no_return})"
-        return (
-            f"Point of no return: {pnr}\n"
-            f"True/predicted drift correlation: {self.correlation:.3f}\n"
-            f"Verdict: {self.verdict}"
-        )
+        lines = [
+            f"Point of no return: {pnr}",
+            f"True/predicted drift correlation: {self.correlation:.3f}",
+            f"Verdict: {self.verdict}",
+        ]
+        if self.pnr_thresholds is not None:
+            method = self.calibration_method or "unspecified"
+            lines.append(f"PNR calibration method: {method}")
+            if method == "naive":
+                lines.append(
+                    "  (naive per-layer quantiles do not give a 5% trajectory "
+                    "false-alarm rate; see Bonferroni / joint calibration)"
+                )
+            if self.epsilon is not None:
+                lines.append(f"DKW ε (single layer): {self.epsilon:.4f}")
+            if self.epsilon_simultaneous is not None:
+                lines.append(
+                    f"DKW ε_sim (all {len(self.layer_names)} layers): "
+                    f"{self.epsilon_simultaneous:.4f}"
+                )
+            if self.measured_false_alarm_rate is not None:
+                lines.append(
+                    f"Measured null trajectory false-alarm rate: "
+                    f"{self.measured_false_alarm_rate:.4f}"
+                )
+        return "\n".join(lines)
 
 
 def _auto_threshold(dk_true: List[float]) -> float:
@@ -109,7 +134,13 @@ def diagnose(
         Pass either:
         - a scalar float used at all layers, or
         - a per-layer sequence of floats, or
-        - a PNRThresholds object produced by calibrate_pnr_thresholds(...).
+        - a PNRThresholds object from calibrate_pnr_thresholds (naive),
+          calibrate_thresholds_bonferroni, or calibrate_thresholds_joint.
+          Option C is not interchangeable with the first two unless you pass
+          disjoint ``tune_pairs``; omitting them overfits the multiplier (the
+          function warns). The object's calibration_method, epsilon, and
+          epsilon_simultaneous are copied onto the result so naive thresholds
+          cannot be presented as Bonferroni/joint-corrected.
         If None, PNR is not computed (but the stable/unstable verdict is).
     stability_corr_cutoff: correlation above which the true-label and
         predicted-label drift trajectories are considered to track each
@@ -120,6 +151,16 @@ def diagnose(
     )
 
     thresholds = _resolve_thresholds(threshold, n_layers=len(drift.dk_true))
+    calib_method = threshold.calibration_method if isinstance(threshold, PNRThresholds) else None
+    epsilon = threshold.epsilon if isinstance(threshold, PNRThresholds) else None
+    epsilon_sim = (
+        threshold.epsilon_simultaneous if isinstance(threshold, PNRThresholds) else None
+    )
+    measured_far = (
+        threshold.measured_false_alarm_rate
+        if isinstance(threshold, PNRThresholds)
+        else None
+    )
     pnr_idx = (
         next((i for i, d in enumerate(drift.dk_true) if d > thresholds[i]), None)
         if thresholds is not None
@@ -147,4 +188,8 @@ def diagnose(
         pnr_thresholds=thresholds,
         correlation=correlation,
         verdict=verdict,
+        calibration_method=calib_method,
+        epsilon=epsilon,
+        epsilon_simultaneous=epsilon_sim,
+        measured_false_alarm_rate=measured_far,
     )

@@ -6,3 +6,8 @@ venv/
 data/
 *.pth
 .pytest_cache/
+
+# Generated experiment artifacts
+results/*/
+*.pt
+.DS_Store

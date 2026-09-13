@@ -25,7 +25,23 @@ from .metrics import (
     layer_metrics_from_maps,
     standardize_z,
 )
-from .pnr import PNRThresholds, calibrate_pnr_thresholds
+from .pnr import PNRThresholds, calibrate_pnr_thresholds, collect_dk_trajectories
+from .bounds import (
+    BHResult,
+    FARResult,
+    MWUResult,
+    benjamini_hochberg,
+    benjamini_yekutieli,
+    calibrate_thresholds_bonferroni,
+    calibrate_thresholds_joint,
+    dkw_epsilon,
+    dkw_epsilon_simultaneous,
+    far_with_ci,
+    mann_whitney_layer_test,
+    trajectory_false_alarm_rate,
+    wilson_proportion_interval,
+)
+from .significance import LayerSignificanceTable, layer_significance_table
 from .report import FragilityProfile, fragility_profile
 from .samples import Sample, SampleDrift
 from .shift import ShiftSpec, build_shift, custom_rotation_blur, get_preset, get_preset_spec, make_shifted_dataset
@@ -43,6 +59,22 @@ __all__ = [
     "diagnose",
     "PNRThresholds",
     "calibrate_pnr_thresholds",
+    "collect_dk_trajectories",
+    "BHResult",
+    "FARResult",
+    "MWUResult",
+    "benjamini_hochberg",
+    "benjamini_yekutieli",
+    "calibrate_thresholds_bonferroni",
+    "calibrate_thresholds_joint",
+    "dkw_epsilon",
+    "dkw_epsilon_simultaneous",
+    "far_with_ci",
+    "mann_whitney_layer_test",
+    "trajectory_false_alarm_rate",
+    "wilson_proportion_interval",
+    "LayerSignificanceTable",
+    "layer_significance_table",
     "FragilityProfile",
     "fragility_profile",
     "Sample",
