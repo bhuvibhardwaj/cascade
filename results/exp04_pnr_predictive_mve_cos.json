@@ -1,0 +1,67 @@
+{
+  "experiment": "exp04_pnr_predictive_validity",
+  "mode": "mve_cosine",
+  "source_run": "/Users/bhuvibhardwaj/Dev/cascade/results/exp04_pnr_predictive_resnet18_seed42_1789275750",
+  "metric": "d_cos",
+  "d_cos_definition": "1 - cosine_similarity(flatten(A_shift), flatten(A_clean))",
+  "pnr_applied": false,
+  "pnr_note": "Exp 03 joint \u03b8 is calibrated on D_norm. It is not a cosine threshold and was not used.",
+  "n_eval_raw": 200,
+  "n_clean_correct": 161,
+  "n_failures": 151,
+  "n_survived": 10,
+  "maps_cache": "/Users/bhuvibhardwaj/Dev/cascade/results/exp04_pnr_predictive_resnet18_seed42_1789275750/maps_cache",
+  "d_raw_cache_vs_csv_mismatched_indices": 0,
+  "aborted": false,
+  "auc": {
+    "max_d_cos": {
+      "auc": 0.3132450331125828,
+      "ci95_lo": 0.19332456140350876,
+      "ci95_hi": 0.4817228739002933
+    },
+    "d_last_cos": {
+      "auc": 0.6079470198675496,
+      "ci95_lo": 0.435437091503268,
+      "ci95_hi": 0.7717949907235622
+    },
+    "d_early_mean_cos": {
+      "auc": 0.5033112582781457,
+      "ci95_lo": 0.3143909189202472,
+      "ci95_hi": 0.6751544477028348
+    },
+    "max_d_norm": {
+      "auc": 0.14966887417218544,
+      "ci95_lo": 0.0718954248366013,
+      "ci95_hi": 0.24488636363636354
+    },
+    "d_last_norm": {
+      "auc": 0.24503311258278146,
+      "ci95_lo": 0.07432119205298013,
+      "ci95_hi": 0.45454545454545453
+    },
+    "neg_conf_shift": {
+      "auc": 0.7781456953642384,
+      "ci95_lo": 0.5973501044490866,
+      "ci95_hi": 0.9285769973269973
+    }
+  },
+  "delta_auc": {
+    "max_d_cos_minus_neg_conf_shift": {
+      "delta_auc": -0.4649006622516556,
+      "ci95_lo": -0.6697051047386617,
+      "ci95_hi": -0.2448416866746702
+    },
+    "max_d_cos_minus_max_d_norm": {
+      "delta_auc": 0.16357615894039734,
+      "ci95_lo": -0.005350516830108652,
+      "ci95_hi": 0.3645690592824051
+    },
+    "max_d_cos_minus_d_last_cos": {
+      "delta_auc": -0.29470198675496684,
+      "ci95_lo": -0.47630811195445916,
+      "ci95_hi": -0.10543877551020413
+    }
+  },
+  "mean_max_d_cos_failed": 1.426396114147262,
+  "mean_max_d_cos_survived": 1.6261080145835876
+}
