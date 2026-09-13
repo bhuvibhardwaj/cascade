@@ -37,6 +37,7 @@ import torchvision.models as models
 import torchvision.transforms as T
 
 from cascade import Cascade
+from cascade.metrics import cosine_distance
 from cascade.shift import ShiftSpec, build_shift
 
 SEED = 42
@@ -190,10 +191,524 @@ def parse_args():
     p.add_argument("--seed", type=int, default=SEED)
     p.add_argument("--min-failures", type=int, default=MIN_FAILURES)
     p.add_argument("--n-boot", type=int, default=N_BOOT)
+    p.add_argument(
+        "--cosine-from-run",
+        type=str,
+        default=None,
+        help=(
+            "Existing Exp 04 run directory. Populate maps_cache via dk("
+            "return_maps=True) if missing, then write samples_cos.csv / "
+            "analysis_cos.json. Does not reuse D_norm joint θ for cosine PNR."
+        ),
+    )
+    p.add_argument(
+        "--pred-from-run",
+        type=str,
+        default=None,
+        help=(
+            "Same eval indices as an Exp 04 run, but GradCAM target is the "
+            "shifted predicted class (layer_drift dk_pred), not the true label. "
+            "Writes maps_cache_pred/, samples_pred.csv, analysis_pred.json."
+        ),
+    )
     return p.parse_args()
 
 
+def _detach_maps(maps):
+    return [t.detach().float().cpu().clone() for t in maps]
+
+
+def _maps_cache_path(run_dir: str, dataset_index: int) -> str:
+    return os.path.join(run_dir, "maps_cache", f"{int(dataset_index)}.pt")
+
+
+def _load_sample_rows(csv_path: str):
+    with open(csv_path, newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def _as_bool(v) -> bool:
+    if isinstance(v, bool):
+        return v
+    return str(v).strip().lower() in {"1", "true", "yes"}
+
+
+def run_cosine_from_run(args):
+    """Second metric on the same eval indices/outcomes as an Exp 04 L2 run.
+
+    Exp 03/04 only persisted scalar D_raw / D_norm. GradCAM maps were computed
+    inside dk() and discarded. This pass keeps A_clean / A_shift on disk, then
+    scores D_cos(k) = 1 - cosine_similarity from those tensors.
+
+    Joint θ from Exp 03 is a D_norm threshold. It is not applied to D_cos.
+    """
+    run_dir = os.path.abspath(args.cosine_from_run)
+    samples_path = os.path.join(run_dir, "samples.csv")
+    splits_path = os.path.join(run_dir, "splits.json")
+    if not os.path.isfile(samples_path):
+        raise FileNotFoundError(f"missing {samples_path}")
+    if not os.path.isfile(splits_path):
+        raise FileNotFoundError(f"missing {splits_path}")
+
+    with open(splits_path) as f:
+        splits = json.load(f)
+    eval_indices = [int(i) for i in splits["eval_indices"]]
+    rows_l2 = _load_sample_rows(samples_path)
+    by_idx = {int(r["dataset_index"]): r for r in rows_l2}
+    missing = [i for i in eval_indices if i not in by_idx]
+    if missing:
+        raise RuntimeError(f"samples.csv missing indices {missing[:5]}...")
+
+    cache_dir = os.path.join(run_dir, "maps_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    need = [i for i in eval_indices if not os.path.isfile(_maps_cache_path(run_dir, i))]
+
+    seed = int(args.seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    device = _device()
+
+    log_path = os.path.join(run_dir, "cosine.log")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(log_path),
+            logging.StreamHandler(sys.stdout),
+        ],
+        force=True,
+    )
+    log = logging.getLogger("exp04_cos")
+    log.info("cosine pass on %s", run_dir)
+    log.info("eval n=%d; maps to compute=%d (rest cached)", len(eval_indices), len(need))
+    log.info(
+        "D_norm joint θ will NOT be applied to D_cos (different scale/metric)."
+    )
+
+    if need:
+        if not os.path.isfile(args.checkpoint):
+            raise FileNotFoundError(
+                f"Exp 03 checkpoint not found: {args.checkpoint}. Do not retrain."
+            )
+        data_root = os.path.join(_REPO_ROOT, "data")
+        test_raw = torchvision.datasets.CIFAR10(
+            root=data_root, train=False, download=True, transform=None
+        )
+        test_clean = NormWrapper(test_raw)
+        shift_fn = build_shift(SHIFT_SPEC)
+        to_tensor = T.ToTensor()
+        norm = T.Normalize(mean=CIFAR_MEAN, std=CIFAR_STD)
+
+        model = build_cifar_resnet18().to(device)
+        state = torch.load(args.checkpoint, map_location=device)
+        model.load_state_dict(state)
+        model.eval()
+        cascade = Cascade(model, max_layers=MAX_LAYERS, device=str(device))
+        log.info("layers: %s", cascade.layer_names)
+
+        t0 = time.time()
+        for j, idx in enumerate(need):
+            rec = by_idx[idx]
+            y = int(rec["true_label"])
+            x_raw, _ = test_raw[idx]
+            if not isinstance(x_raw, torch.Tensor):
+                x01 = to_tensor(x_raw)
+            else:
+                x01 = x_raw
+            x, _ = test_clean[idx]
+            xs = norm(shift_fn(x01))
+            x_batch = x.unsqueeze(0) if x.dim() == 3 else x
+            xs_batch = xs.unsqueeze(0) if xs.dim() == 3 else xs
+            x_batch = x_batch.to(device)
+            xs_batch = xs_batch.to(device)
+
+            d_raw, d_norm, a_clean, a_shift = cascade.dk(
+                x_batch, xs_batch, target_class=y, return_maps=True
+            )
+            payload = {
+                "dataset_index": idx,
+                "true_label": y,
+                "layer_names": list(cascade.layer_names),
+                "A_clean": _detach_maps(a_clean),
+                "A_shift": _detach_maps(a_shift),
+                "d_raw_from_maps": [float(v) for v in d_raw],
+                "d_norm_from_maps": [float(v) for v in d_norm],
+            }
+            torch.save(payload, _maps_cache_path(run_dir, idx))
+
+            done = j + 1
+            n = len(need)
+            if done == 10 or done % 50 == 0 or done == n:
+                elapsed = time.time() - t0
+                rate = elapsed / done
+                log.info(
+                    "cache %d/%d  %.2fs/pair  ETA %.0fs",
+                    done, n, rate, rate * (n - done),
+                )
+    else:
+        log.info("maps_cache already complete; skipping GradCAM")
+
+    fieldnames = [
+        "dataset_index",
+        "true_label",
+        "pred_clean",
+        "pred_shift",
+        "correct_clean",
+        "correct_shift",
+        "failed",
+        "conf_shift",
+        *[f"d_cos_{k}" for k in range(MAX_LAYERS)],
+        "max_d_cos",
+        "argmax_d_cos",
+        "d_last_cos",
+        "d_early_mean_cos",
+        "max_d_norm",
+        "d_last_norm",
+    ]
+    cos_rows = []
+    raw_mismatch = 0
+    for idx in eval_indices:
+        rec = by_idx[idx]
+        payload = torch.load(_maps_cache_path(run_dir, idx), map_location="cpu")
+        a_clean = payload["A_clean"]
+        a_shift = payload["A_shift"]
+        if len(a_clean) != MAX_LAYERS:
+            raise RuntimeError(
+                f"cache {idx}: expected {MAX_LAYERS} maps, got {len(a_clean)}"
+            )
+        d_cos = [
+            cosine_distance(ac, ash) for ac, ash in zip(a_clean, a_shift)
+        ]
+        cached_raw = payload.get("d_raw_from_maps")
+        if cached_raw is not None:
+            for k in range(MAX_LAYERS):
+                prev = float(rec[f"d_raw_{k}"])
+                if abs(prev - float(cached_raw[k])) > 1e-3:
+                    raw_mismatch += 1
+                    break
+
+        row = {
+            "dataset_index": idx,
+            "true_label": int(rec["true_label"]),
+            "pred_clean": int(rec["pred_clean"]),
+            "pred_shift": int(rec["pred_shift"]),
+            "correct_clean": _as_bool(rec["correct_clean"]),
+            "correct_shift": _as_bool(rec["correct_shift"]),
+            "failed": _as_bool(rec["failed"]),
+            "conf_shift": float(rec["conf_shift"]),
+            "max_d_cos": float(max(d_cos)),
+            "argmax_d_cos": int(int(np.argmax(d_cos))),
+            "d_last_cos": float(d_cos[-1]),
+            "d_early_mean_cos": float(np.mean(d_cos[:2])),
+            "max_d_norm": float(rec["max_d"]),
+            "d_last_norm": float(rec["d_last"]),
+        }
+        for k in range(MAX_LAYERS):
+            row[f"d_cos_{k}"] = float(d_cos[k])
+        cos_rows.append(row)
+
+    if raw_mismatch:
+        log.warning(
+            "D_raw from recached maps differed from samples.csv on %d/%d "
+            "indices (float/device noise). Outcomes still taken from samples.csv.",
+            raw_mismatch,
+            len(eval_indices),
+        )
+
+    csv_path = os.path.join(run_dir, "samples_cos.csv")
+    with open(csv_path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(cos_rows)
+    log.info("wrote %s", csv_path)
+
+    eval_rows = [r for r in cos_rows if r["correct_clean"]]
+    n_cc = len(eval_rows)
+    n_fail = sum(1 for r in eval_rows if r["failed"])
+    n_surv = n_cc - n_fail
+    log.info("clean-correct: %d  failures: %d  survived: %d", n_cc, n_fail, n_surv)
+
+    analysis = {
+        "experiment": "exp04_pnr_predictive_validity",
+        "mode": "mve_cosine",
+        "source_run": run_dir,
+        "metric": "d_cos",
+        "d_cos_definition": "1 - cosine_similarity(flatten(A_shift), flatten(A_clean))",
+        "pnr_applied": False,
+        "pnr_note": (
+            "Exp 03 joint θ is calibrated on D_norm. It is not a cosine "
+            "threshold and was not used."
+        ),
+        "n_eval_raw": len(cos_rows),
+        "n_clean_correct": n_cc,
+        "n_failures": n_fail,
+        "n_survived": n_surv,
+        "maps_cache": cache_dir,
+        "d_raw_cache_vs_csv_mismatched_indices": raw_mismatch,
+    }
+
+    if n_fail < int(args.min_failures):
+        analysis["aborted"] = True
+        analysis["abort_reason"] = (
+            f"clean-correct failures {n_fail} < {args.min_failures}"
+        )
+        log.warning("%s", analysis["abort_reason"])
+    else:
+        analysis["aborted"] = False
+        y = np.array([1 if r["failed"] else 0 for r in eval_rows], dtype=int)
+        scores = {
+            "max_d_cos": np.array([r["max_d_cos"] for r in eval_rows], dtype=float),
+            "d_last_cos": np.array([r["d_last_cos"] for r in eval_rows], dtype=float),
+            "d_early_mean_cos": np.array(
+                [r["d_early_mean_cos"] for r in eval_rows], dtype=float
+            ),
+            "max_d_norm": np.array([r["max_d_norm"] for r in eval_rows], dtype=float),
+            "d_last_norm": np.array([r["d_last_norm"] for r in eval_rows], dtype=float),
+            "neg_conf_shift": np.array(
+                [-r["conf_shift"] for r in eval_rows], dtype=float
+            ),
+        }
+        boot_rng = np.random.default_rng(seed + 1)
+        auc_table = {}
+        for name, sc in scores.items():
+            point, lo, hi = bootstrap_auc(y, sc, int(args.n_boot), boot_rng)
+            auc_table[name] = {"auc": point, "ci95_lo": lo, "ci95_hi": hi}
+            log.info("AUC %s: %.4f [%.4f, %.4f]", name, point, lo, hi)
+        delta_table = {}
+        for other in ("neg_conf_shift", "max_d_norm", "d_last_cos"):
+            d, lo, hi = bootstrap_delta_auc(
+                y, scores["max_d_cos"], scores[other], int(args.n_boot), boot_rng
+            )
+            delta_table[f"max_d_cos_minus_{other}"] = {
+                "delta_auc": d,
+                "ci95_lo": lo,
+                "ci95_hi": hi,
+            }
+            log.info("ΔAUC max_d_cos - %s: %.4f [%.4f, %.4f]", other, d, lo, hi)
+        analysis["auc"] = auc_table
+        analysis["delta_auc"] = delta_table
+        fail_rows = [r for r in eval_rows if r["failed"]]
+        surv_rows = [r for r in eval_rows if not r["failed"]]
+        analysis["mean_max_d_cos_failed"] = float(
+            np.mean([r["max_d_cos"] for r in fail_rows])
+        )
+        analysis["mean_max_d_cos_survived"] = float(
+            np.mean([r["max_d_cos"] for r in surv_rows])
+        ) if surv_rows else float("nan")
+
+    json_path = os.path.join(run_dir, "analysis_cos.json")
+    with open(json_path, "w") as f:
+        json.dump(analysis, f, indent=2)
+    latest = os.path.join(_REPO_ROOT, "results", "exp04_pnr_predictive_mve_cos.json")
+    with open(latest, "w") as f:
+        json.dump(analysis, f, indent=2)
+    log.info("wrote %s and %s", json_path, latest)
+    return analysis
+
+
+def run_pred_from_run(args):
+    """True-label maps are already cached. This pass uses pred_shift as GradCAM target.
+
+    Survivors have pred_shift == y, so pred-label maps must match true-label maps.
+    Failures have pred_shift != y; that is the independent comparison.
+    """
+    run_dir = os.path.abspath(args.pred_from_run)
+    samples_path = os.path.join(run_dir, "samples.csv")
+    splits_path = os.path.join(run_dir, "splits.json")
+    if not os.path.isfile(samples_path) or not os.path.isfile(splits_path):
+        raise FileNotFoundError(run_dir)
+
+    with open(splits_path) as f:
+        splits = json.load(f)
+    eval_indices = [int(i) for i in splits["eval_indices"]]
+    by_idx = {int(r["dataset_index"]): r for r in _load_sample_rows(samples_path)}
+
+    cache_dir = os.path.join(run_dir, "maps_cache_pred")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    def cache_path(i):
+        return os.path.join(cache_dir, f"{int(i)}.pt")
+
+    need = [i for i in eval_indices if not os.path.isfile(cache_path(i))]
+    seed = int(args.seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    device = _device()
+
+    log_path = os.path.join(run_dir, "pred.log")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.FileHandler(log_path), logging.StreamHandler(sys.stdout)],
+        force=True,
+    )
+    log = logging.getLogger("exp04_pred")
+    log.info("pred-label GradCAM on %s  need=%d/%d", run_dir, len(need), len(eval_indices))
+
+    if need:
+        data_root = os.path.join(_REPO_ROOT, "data")
+        test_raw = torchvision.datasets.CIFAR10(
+            root=data_root, train=False, download=True, transform=None
+        )
+        test_clean = NormWrapper(test_raw)
+        shift_fn = build_shift(SHIFT_SPEC)
+        to_tensor = T.ToTensor()
+        norm = T.Normalize(mean=CIFAR_MEAN, std=CIFAR_STD)
+        model = build_cifar_resnet18().to(device)
+        model.load_state_dict(torch.load(args.checkpoint, map_location=device))
+        model.eval()
+        cascade = Cascade(model, max_layers=MAX_LAYERS, device=str(device))
+        t0 = time.time()
+        for j, idx in enumerate(need):
+            rec = by_idx[idx]
+            pred_shift = int(rec["pred_shift"])
+            x_raw, _ = test_raw[idx]
+            x01 = x_raw if isinstance(x_raw, torch.Tensor) else to_tensor(x_raw)
+            x, _ = test_clean[idx]
+            xs = norm(shift_fn(x01))
+            x_batch = (x.unsqueeze(0) if x.dim() == 3 else x).to(device)
+            xs_batch = (xs.unsqueeze(0) if xs.dim() == 3 else xs).to(device)
+            d_raw, d_norm, a_clean, a_shift = cascade.dk(
+                x_batch, xs_batch, target_class=pred_shift, return_maps=True
+            )
+            torch.save(
+                {
+                    "dataset_index": idx,
+                    "target_class": pred_shift,
+                    "layer_names": list(cascade.layer_names),
+                    "A_clean": _detach_maps(a_clean),
+                    "A_shift": _detach_maps(a_shift),
+                    "d_raw_from_maps": [float(v) for v in d_raw],
+                    "d_norm_from_maps": [float(v) for v in d_norm],
+                },
+                cache_path(idx),
+            )
+            done = j + 1
+            if done == 10 or done % 50 == 0 or done == len(need):
+                elapsed = time.time() - t0
+                log.info("cache %d/%d  %.2fs/pair", done, len(need), elapsed / done)
+
+    fieldnames = [
+        "dataset_index", "true_label", "pred_shift", "correct_clean", "failed",
+        "target_equals_true",
+        *[f"d_cos_pred_{k}" for k in range(MAX_LAYERS)],
+        *[f"d_norm_pred_{k}" for k in range(MAX_LAYERS)],
+        "max_d_cos_pred", "d_last_cos_pred", "d_early_mean_cos_pred",
+        "max_d_norm_pred", "d_last_norm_pred",
+        "max_d_cos_true", "max_d_norm_true",
+    ]
+    cos_true = {}
+    cos_path = os.path.join(run_dir, "samples_cos.csv")
+    if os.path.isfile(cos_path):
+        for r in _load_sample_rows(cos_path):
+            cos_true[int(r["dataset_index"])] = r
+
+    pred_rows = []
+    for idx in eval_indices:
+        rec = by_idx[idx]
+        payload = torch.load(cache_path(idx), map_location="cpu")
+        d_cos = [
+            cosine_distance(ac, ash)
+            for ac, ash in zip(payload["A_clean"], payload["A_shift"])
+        ]
+        d_norm = [float(v) for v in payload["d_norm_from_maps"]]
+        y = int(rec["true_label"])
+        pred_shift = int(rec["pred_shift"])
+        ct = cos_true.get(idx, {})
+        row = {
+            "dataset_index": idx,
+            "true_label": y,
+            "pred_shift": pred_shift,
+            "correct_clean": _as_bool(rec["correct_clean"]),
+            "failed": _as_bool(rec["failed"]),
+            "target_equals_true": pred_shift == y,
+            "max_d_cos_pred": float(max(d_cos)),
+            "d_last_cos_pred": float(d_cos[-1]),
+            "d_early_mean_cos_pred": float(np.mean(d_cos[:2])),
+            "max_d_norm_pred": float(max(d_norm)),
+            "d_last_norm_pred": float(d_norm[-1]),
+            "max_d_cos_true": float(ct["max_d_cos"]) if ct else float("nan"),
+            "max_d_norm_true": float(rec["max_d"]),
+        }
+        for k in range(MAX_LAYERS):
+            row[f"d_cos_pred_{k}"] = float(d_cos[k])
+            row[f"d_norm_pred_{k}"] = d_norm[k]
+        pred_rows.append(row)
+
+    csv_path = os.path.join(run_dir, "samples_pred.csv")
+    with open(csv_path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(pred_rows)
+    log.info("wrote %s", csv_path)
+
+    eval_rows = [r for r in pred_rows if r["correct_clean"]]
+    fail_rows = [r for r in eval_rows if r["failed"]]
+    surv_rows = [r for r in eval_rows if not r["failed"]]
+    surv_labels = sorted(set(r["true_label"] for r in surv_rows))
+    fail_labels = sorted(set(r["true_label"] for r in fail_rows))
+    log.info("survivors n=%d labels=%s", len(surv_rows), surv_labels)
+    log.info("failures n=%d labels=%s", len(fail_rows), fail_labels)
+
+    y = np.array([1 if r["failed"] else 0 for r in eval_rows], dtype=int)
+    scores = {
+        "max_d_cos_pred": np.array([r["max_d_cos_pred"] for r in eval_rows]),
+        "d_last_cos_pred": np.array([r["d_last_cos_pred"] for r in eval_rows]),
+        "max_d_norm_pred": np.array([r["max_d_norm_pred"] for r in eval_rows]),
+        "d_last_norm_pred": np.array([r["d_last_norm_pred"] for r in eval_rows]),
+        "max_d_cos_true": np.array([r["max_d_cos_true"] for r in eval_rows]),
+        "max_d_norm_true": np.array([r["max_d_norm_true"] for r in eval_rows]),
+    }
+    boot_rng = np.random.default_rng(seed + 1)
+    auc_table = {}
+    for name, sc in scores.items():
+        if not np.isfinite(sc).all():
+            continue
+        point, lo, hi = bootstrap_auc(y, sc, int(args.n_boot), boot_rng)
+        auc_table[name] = {"auc": point, "ci95_lo": lo, "ci95_hi": hi}
+        log.info("AUC %s: %.4f [%.4f, %.4f]", name, point, lo, hi)
+
+    # Survivors vs fail: pred maps must match true maps on survivors.
+    surv_match = []
+    for r in surv_rows:
+        if np.isfinite(r["max_d_cos_true"]):
+            surv_match.append(abs(r["max_d_cos_pred"] - r["max_d_cos_true"]))
+    analysis = {
+        "experiment": "exp04_pnr_predictive_validity",
+        "mode": "mve_pred_label",
+        "source_run": run_dir,
+        "gradcam_target": "pred_shift",
+        "n_clean_correct": len(eval_rows),
+        "n_failures": len(fail_rows),
+        "n_survived": len(surv_rows),
+        "survivor_true_labels": surv_labels,
+        "failure_true_labels": fail_labels,
+        "class_confound_note": (
+            "If survivors are a single CIFAR class and that class is absent "
+            "from failures, fail-vs-survive D(k) is a class comparison."
+        ),
+        "survivor_max_d_cos_pred_minus_true_max_abs": (
+            float(max(surv_match)) if surv_match else float("nan")
+        ),
+        "mean_max_d_cos_pred_failed": float(np.mean([r["max_d_cos_pred"] for r in fail_rows])),
+        "mean_max_d_cos_pred_survived": float(np.mean([r["max_d_cos_pred"] for r in surv_rows])),
+        "mean_max_d_norm_pred_failed": float(np.mean([r["max_d_norm_pred"] for r in fail_rows])),
+        "mean_max_d_norm_pred_survived": float(np.mean([r["max_d_norm_pred"] for r in surv_rows])),
+        "auc": auc_table,
+    }
+    json_path = os.path.join(run_dir, "analysis_pred.json")
+    with open(json_path, "w") as f:
+        json.dump(analysis, f, indent=2)
+    log.info("wrote %s", json_path)
+    return analysis
+
+
 def run(args):
+    if args.pred_from_run:
+        return run_pred_from_run(args)
+    if args.cosine_from_run:
+        return run_cosine_from_run(args)
+
     seed = int(args.seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
