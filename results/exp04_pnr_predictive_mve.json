@@ -1,0 +1,110 @@
+{
+  "experiment": "exp04_pnr_predictive_validity",
+  "mode": "mve",
+  "seed": 42,
+  "checkpoint": "/Users/bhuvibhardwaj/Dev/cascade/results/pnr_statistical_layer_resnet18_seed42_1789106507/resnet18_cifar10.pt",
+  "exp03_json": "/Users/bhuvibhardwaj/Dev/cascade/results/pnr_statistical_layer_resnet18.json",
+  "shift": {
+    "name": "runner_mild",
+    "degrees": 45.0,
+    "blur_kernel": 5,
+    "blur_sigma": 1.5,
+    "noise_std": 0.0,
+    "brightness": 1.0,
+    "contrast": 1.0
+  },
+  "n_layers": 8,
+  "layer_names": [
+    "conv1",
+    "layer1.1.conv1",
+    "layer2.0.conv1",
+    "layer2.1.conv1",
+    "layer3.0.conv2",
+    "layer3.1.conv2",
+    "layer4.0.conv2",
+    "layer4.1.conv2"
+  ],
+  "theta_method": "joint",
+  "theta": [
+    1.7978498540856063,
+    1.7882047701032928,
+    1.522483774994415,
+    1.7717418582747546,
+    1.1006672249594576,
+    1.2152583493365412,
+    1.0548299271480819,
+    1.3533002451312577
+  ],
+  "n_eval_raw": 200,
+  "n_clean_correct": 161,
+  "n_failures": 151,
+  "failure_rate": 0.937888198757764,
+  "min_failures": 20,
+  "aborted": false,
+  "abort_reason": null,
+  "environment": {
+    "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:11:29) [Clang 20.1.8 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "torch": "2.13.0",
+    "numpy": "2.5.1",
+    "device": "mps"
+  },
+  "pnr_trigger_rate_clean_correct": 0.6894409937888198,
+  "pnr_trigger_rate_failed": 0.6754966887417219,
+  "pnr_trigger_rate_survived": 0.9,
+  "auc": {
+    "score_pnr": {
+      "auc": 0.2867549668874172,
+      "ci95_lo": 0.1695906432748538,
+      "ci95_hi": 0.4335596806534548
+    },
+    "neg_conf_shift": {
+      "auc": 0.7781456953642384,
+      "ci95_lo": 0.588450146627566,
+      "ci95_hi": 0.9308794970467155
+    },
+    "d_last": {
+      "auc": 0.24503311258278146,
+      "ci95_lo": 0.07604015879282361,
+      "ci95_hi": 0.45687380382775117
+    },
+    "max_d": {
+      "auc": 0.14966887417218544,
+      "ci95_lo": 0.0718954248366013,
+      "ci95_hi": 0.24488636363636354
+    },
+    "d_early_mean": {
+      "auc": 0.34635761589403974,
+      "ci95_lo": 0.2587571770334928,
+      "ci95_hi": 0.443044289044289
+    },
+    "binary_pnr": {
+      "auc": 0.3877483443708609,
+      "ci95_lo": 0.3108974358974359,
+      "ci95_hi": 0.5056153577965657
+    }
+  },
+  "delta_auc": {
+    "score_pnr_minus_neg_conf_shift": {
+      "delta_auc": -0.4913907284768212,
+      "ci95_lo": -0.7273411856253537,
+      "ci95_hi": -0.18992902707440604
+    },
+    "score_pnr_minus_d_last": {
+      "delta_auc": 0.041721854304635736,
+      "ci95_lo": -0.18178695820433435,
+      "ci95_hi": 0.20363342609771176
+    },
+    "score_pnr_minus_max_d": {
+      "delta_auc": 0.13708609271523176,
+      "ci95_lo": 0.06489379195386762,
+      "ci95_hi": 0.2145662236547744
+    },
+    "score_pnr_minus_d_early_mean": {
+      "delta_auc": -0.05960264900662254,
+      "ci95_lo": -0.187847866419295,
+      "ci95_hi": 0.08130106209150326
+    }
+  },
+  "n_survived": 10
+}
